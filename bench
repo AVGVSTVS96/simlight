@@ -28,7 +28,8 @@ def secs(t):
     for part in t.split(":"): s = s * 60 + float(part)
     return s + (int(d) * 86400 if d else 0)
 mine = [r for r in rows if r[0] in kids]
-print(len(mine), round(sum(secs(r[3]) for r in mine)), " ".join(sorted({r[2] for r in mine})))' "$id"
+if len(sys.argv) > 2: print(" ".join(r[0] for r in mine)); sys.exit()
+print(len(mine), round(sum(secs(r[3]) for r in mine)), " ".join(sorted({r[2] for r in mine})))' "$id" "$@"
 }
 
 start=$(date +%s)
@@ -59,4 +60,11 @@ read -r procs cpu nices < <(tree)
 memory=$(simslim measure "$id" --json | jq '.bytes / 1048576 | round')
 echo "at 3 min: $procs processes, $cpu CPU-s, $memory MB, nice values: $nices"
 printf '{"variant":"%s","processes":%s,"cpu_s":%s,"mb":%s}\n' "$variant" "$procs" "$cpu" "$memory" >> "${RESULTS:-/dev/null}"
+
+# Whether the simulator can be made to yield to the Mac: every process in it at the lowest priority and in the
+# background (efficiency cores), then whether an app launched afterwards inherits that.
+for pid in $(tree pids); do renice -n 19 -p "$pid" >/dev/null 2>&1 || true; taskpolicy -b -p "$pid" 2>/dev/null || true; done
+xcrun simctl launch "$id" com.apple.Preferences >/dev/null
+sleep 5
+echo "after lowering: nice values $(tree | cut -d' ' -f3-); Settings app nice $(ps -Ao nice=,command= | awk -v id="$id" 'index($0, id) && /Preferences.app/ { print $1; exit }')"
 xcrun simctl shutdown "$id"
