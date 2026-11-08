@@ -66,13 +66,15 @@ printf '{"variant":"%s","processes":%s,"cpu_s":%s,"mb":%s}\n' "$variant" "$procs
 for pid in $(tree pids); do renice -n 19 -p "$pid" >/dev/null 2>&1 || true; taskpolicy -b -p "$pid" 2>/dev/null || true; done
 xcrun simctl launch "$id" com.apple.Preferences >/dev/null
 sleep 5
-echo "after lowering: nice values $(tree | cut -d' ' -f3-); Settings app nice $(ps -Ao nice=,command= | awk -v id="$id" 'index($0, id) && /Preferences.app/ { print $1; exit }')"
+echo "after lowering: nice values $(tree | cut -d' ' -f3-); Settings app nice $(ps -Ao nice=,command= | awk '/Preferences.app\/Preferences/ { print $1; exit }')"
 
 # Whether a third-party keyboard still shows: probe/'s app focuses a text field and its keyboard extension draws an
 # orange panel. PROBE is the built app.
 if [ -n "${PROBE:-}" ]; then
   xcrun simctl install "$id" "$PROBE"
   xcrun simctl spawn "$id" defaults write .GlobalPreferences AppleKeyboards -array run.simlight.Probe.Keys "en_US@sw=QWERTY;hw=Automatic"
+  xcrun simctl spawn "$id" defaults write .GlobalPreferences AppleKeyboardsExpanded -int 1
+  xcrun simctl spawn "$id" defaults write com.apple.keyboard.preferences DidShowContinuousPathIntroduction -bool true
   xcrun simctl shutdown "$id"
   xcrun simctl boot "$id"
   xcrun simctl bootstatus "$id" >/dev/null
