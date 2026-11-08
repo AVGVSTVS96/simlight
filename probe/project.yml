@@ -18,6 +18,8 @@ targets:
     platform: iOS
     deploymentTarget: "18.0"
     sources: [Keys]
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: run.simlight.Probe.Keys
     info:
       path: Keys/Info.plist
       properties:
