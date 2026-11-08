@@ -16,8 +16,15 @@ jobs:
         with:
           go-version: stable
       - run: go install github.com/mobai-app/simslim/cmd/simslim@7e374b3
-      - run: RESULTS=result.json ./bench ${{ matrix.variant }}
+      - run: brew install xcodegen
+      - working-directory: probe
+        run: |
+          xcodegen
+          xcodebuild -project Probe.xcodeproj -scheme Probe -sdk iphonesimulator -derivedDataPath build CODE_SIGN_IDENTITY=- build -quiet
+      - run: RESULTS=result.json PROBE=probe/build/Build/Products/Debug-iphonesimulator/Probe.app ./bench ${{ matrix.variant }}
       - uses: actions/upload-artifact@v5
         with:
           name: ${{ matrix.variant }}-${{ matrix.run }}
-          path: result.json
+          path: |
+            result.json
+            keyboard-*.png

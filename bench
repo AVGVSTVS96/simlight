@@ -67,4 +67,19 @@ for pid in $(tree pids); do renice -n 19 -p "$pid" >/dev/null 2>&1 || true; task
 xcrun simctl launch "$id" com.apple.Preferences >/dev/null
 sleep 5
 echo "after lowering: nice values $(tree | cut -d' ' -f3-); Settings app nice $(ps -Ao nice=,command= | awk -v id="$id" 'index($0, id) && /Preferences.app/ { print $1; exit }')"
+
+# Whether a third-party keyboard still shows: probe/'s app focuses a text field and its keyboard extension draws an
+# orange panel. PROBE is the built app.
+if [ -n "${PROBE:-}" ]; then
+  xcrun simctl install "$id" "$PROBE"
+  xcrun simctl spawn "$id" defaults write .GlobalPreferences AppleKeyboards -array run.simlight.Probe.Keys "en_US@sw=QWERTY;hw=Automatic"
+  xcrun simctl shutdown "$id"
+  xcrun simctl boot "$id"
+  xcrun simctl bootstatus "$id" >/dev/null
+  sleep 20
+  xcrun simctl launch "$id" run.simlight.Probe >/dev/null
+  sleep 15
+  xcrun simctl io "$id" screenshot "keyboard-$variant.png" >/dev/null 2>&1
+  pgrep -f "CoreSimulator/Devices/$id/.*Keys.appex" >/dev/null && echo "keyboard: extension running" || echo "keyboard: extension NOT running"
+fi
 xcrun simctl shutdown "$id"

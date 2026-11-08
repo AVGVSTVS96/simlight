@@ -1,0 +1,30 @@
+name: Probe
+options:
+  bundleIdPrefix: run.simlight
+targets:
+  Probe:
+    type: application
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources: [App]
+    info:
+      path: App/Info.plist
+      properties:
+        UILaunchScreen: {}
+    dependencies:
+      - target: Keys
+  Keys:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources: [Keys]
+    info:
+      path: Keys/Info.plist
+      properties:
+        CFBundleDisplayName: Keys
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.keyboard-service
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).Keys
+          NSExtensionAttributes:
+            PrimaryLanguage: en-US
+            RequestsOpenAccess: false
