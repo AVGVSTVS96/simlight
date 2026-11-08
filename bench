@@ -6,8 +6,9 @@
 #   slim   with simslim's full profile (~175 services)
 set -euo pipefail
 variant=$1
-runtime=$(xcrun simctl list runtimes -j | jq -r '[.runtimes[] | select(.platform == "iOS" and .isAvailable)] | last | .identifier')
-type=$(xcrun simctl list devicetypes -j | jq -r '[.devicetypes[] | select(.productFamily == "iPhone")] | last | .identifier')
+runtime=$(xcrun simctl list runtimes -j | jq -c '[.runtimes[] | select(.platform == "iOS" and .isAvailable)] | last')
+type=$(echo "$runtime" | jq -r '[.supportedDeviceTypes[] | select(.productFamily == "iPhone")] | last | .identifier')
+runtime=$(echo "$runtime" | jq -r .identifier)
 id=$(xcrun simctl create "bench $variant" "$type" "$runtime")
 echo "runtime $runtime, device $type, $(sysctl -n hw.ncpu) CPUs, $(($(sysctl -n hw.memsize) / 1073741824)) GB"
 
