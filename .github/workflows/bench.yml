@@ -1,0 +1,23 @@
+name: bench
+on:
+  push:
+  workflow_dispatch:
+jobs:
+  boot:
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [stock, turn, slim]
+        run: [1, 2]
+    runs-on: xcode-27
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+      - run: go install github.com/mobai-app/simslim/cmd/simslim@7e374b3
+      - run: RESULTS=result.json ./bench ${{ matrix.variant }}
+      - uses: actions/upload-artifact@v5
+        with:
+          name: ${{ matrix.variant }}-${{ matrix.run }}
+          path: result.json

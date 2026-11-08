@@ -1,0 +1,61 @@
+#!/bin/bash
+# bench <stock|turn|slim>: makes a fresh iPhone simulator, boots it once so its first-boot setup is done, then boots it
+# again set up one way and prints what that boot costs 3 minutes in: boot time, CPU seconds, processes and memory.
+#   stock  as Xcode makes it
+#   turn   with the 18 services dotfiles' turn switches off (as of a4eadac)
+#   slim   with simslim's full profile (~175 services)
+set -euo pipefail
+variant=$1
+runtime=$(xcrun simctl list runtimes -j | jq -r '[.runtimes[] | select(.platform == "iOS" and .isAvailable)] | last | .identifier')
+type=$(xcrun simctl list devicetypes -j | jq -r '[.devicetypes[] | select(.productFamily == "iPhone")] | last | .identifier')
+id=$(xcrun simctl create "bench $variant" "$type" "$runtime")
+echo "runtime $runtime, device $type, $(sysctl -n hw.ncpu) CPUs, $(($(sysctl -n hw.memsize) / 1073741824)) GB"
+
+# The simulator's processes: its launchd_sim and everything under it.
+tree() {
+  ps -Ao pid=,ppid=,nice=,time=,command= | python3 -I -c '
+import sys
+id, rows = sys.argv[1], [l.split(None, 4) for l in sys.stdin]
+root = [r[0] for r in rows if "launchd_sim" in r[4] and id in r[4]]
+kids, todo = set(root), list(root)
+while todo:
+    p = todo.pop()
+    for r in rows:
+        if r[1] == p and r[0] not in kids: kids.add(r[0]); todo.append(r[0])
+def secs(t):
+    d, _, t = t.rpartition("-"); s = 0.0
+    for part in t.split(":"): s = s * 60 + float(part)
+    return s + (int(d) * 86400 if d else 0)
+mine = [r for r in rows if r[0] in kids]
+print(len(mine), round(sum(secs(r[3]) for r in mine)), " ".join(sorted({r[2] for r in mine})))' "$id"
+}
+
+start=$(date +%s)
+xcrun simctl bootstatus "$id" -b >/dev/null
+echo "first boot: $(($(date +%s) - start)) s"
+sleep 60
+xcrun simctl shutdown "$id"
+
+case $variant in
+  turn)
+    off=/private/var/tmp/com.apple.CoreSimulator.SimDevice.$id/disabled.plist
+    mkdir -p -m 700 "${off%/*}"
+    for label in com.apple.PosterBoard com.apple.chronod com.apple.siriactionsd com.apple.liveactivitiesd \
+      com.apple.intelligencetasksd com.apple.siriinferenced com.apple.siriknowledged com.apple.assistantd \
+      com.apple.routined com.apple.UsageTrackingAgent com.apple.nanoprefsyncd.2 com.apple.dmd com.apple.email.maild \
+      com.apple.assetsd com.apple.ScreenTimeAgent com.apple.sirittsd com.apple.modelmanagerd; do
+      /usr/libexec/PlistBuddy -c "Add :$label bool true" "$off" >/dev/null
+    done ;;
+  slim) simslim on "$id" --preserve-boot-state ;;
+esac
+
+start=$(date +%s)
+nice -n 19 xcrun simctl boot "$id"
+xcrun simctl bootstatus "$id" >/dev/null
+echo "boot: $(($(date +%s) - start)) s"
+wait=$((start + 180 - $(date +%s))); [ "$wait" -le 0 ] || sleep "$wait"
+read -r procs cpu nices < <(tree)
+memory=$(simslim measure "$id" --json | jq '.bytes / 1048576 | round')
+echo "at 3 min: $procs processes, $cpu CPU-s, $memory MB, nice values: $nices"
+printf '{"variant":"%s","processes":%s,"cpu_s":%s,"mb":%s}\n' "$variant" "$procs" "$cpu" "$memory" >> "${RESULTS:-/dev/null}"
+xcrun simctl shutdown "$id"
